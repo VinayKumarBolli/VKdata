@@ -1,8 +1,5 @@
-terraform {
-  required_providers {
-    azurerm = {
-      source  = "hashicorp/azurerm"
-      version = "~> 2.0"
-    }
-  }
-}
+rgname = "NextOpsVideos"
+rglocation = "eastus"
+prefix = "NextOps"
+vnet_cidr_prefix = "10.10.0.0/16"
+subnet1_cidr_prefix = "10.10.1.0/24"
