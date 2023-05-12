@@ -1,68 +1,40 @@
-name: $(Build.BuildId).$(date:yyyyMMdd)
+provider "azurerm" {
+  features {}
+}
 
-parameters:
-  - name: environment
-    displayName: "environment"
-    type: string
-    default: dev
-    values:
-      - dev
-      - test
+resource "azurerm_resource_group" "databricks" {
+  name     = var.resource_group_name
+  location = var.location
+}
 
-trigger:
-  - main
-pr: none
+resource "azurerm_virtual_network" "databricks_vnet" {
+  name                = "${var.databricks_workspace_name}-vnet"
+  address_space       = ["10.0.0.0/16"]
+  location            = azurerm_resource_group.databricks.location
+  resource_group_name = azurerm_resource_group.databricks.name
 
-variables:
-  - group: "VG-SHARED"
-  - group: "VG-${{parameters.environment}}"
+  subnet {
+    name           = "databricks-subnet"
+    address_prefix = "10.0.1.0/24"
+  }
 
+  subnet {
+    name           = "worker-subnet"
+    address_prefix = "10.0.2.0/24"
+  }
+}
 
-pool:
-  # vmImage: "windows-2019"
-  name: "SWC Self Hosted Windows 01"
-
-stages:
-  - stage: "Deploy_Databricks_Resources"
-    displayName: "Deploy Databricks resources in ${{ parameters.environment }}"
-    jobs:
-      - deployment: "Deploy_Databricks_Resources"
-        displayName: "Deploy Databricks resources in ${{ parameters.environment }}"
-        environment: ${{ parameters.environment }}
-        strategy:
-          runOnce:
-            deploy:
-              steps:
-                - checkout: self
-                - task: TerraformInstaller@1
-                  displayName: "tf install"
-                  inputs:
-                    terraformVersion: "1.4.0"
-                - task: TerraformTaskV4@4
-                  displayName: "tf init"
-                  inputs:
-                    provider: "azurerm"
-                    command: "init"
-                    # commandOptions: '-reconfigure'
-                    workingDirectory: '$(System.DefaultWorkingDirectory)\${{ parameters.environment }}'
-                    backendServiceArm: "XX"
-                    backendAzureRmResourceGroupName: "XX"
-                    backendAzureRmStorageAccountName: "XXX" #"$(storageName)"
-                    backendAzureRmContainerName: "tfstate"
-                    backendAzureRmKey: "${{ parameters.environment }}-terraform.tfstate"
-                - task: TerraformTaskV4@4
-                  displayName: "tf plan"
-                  inputs:
-                    provider: "azurerm"
-                    command: "plan"
-                    workingDirectory: '$(System.DefaultWorkingDirectory)\${{ parameters.environment }}'
-                    commandOptions: "-var-file terraform.tfvars"
-                    environmentServiceNameAzureRM: '$(azdoResourceConnection)'
-                - task: TerraformTaskV4@4
-                  displayName: "tf apply"
-                  inputs:
-                    provider: "azurerm"
-                    command: "apply"
-                    workingDirectory: '$(System.DefaultWorkingDirectory)\${{ parameters.environment }}'
-                    commandOptions: ""
-                    environmentServiceNameAzureRM: '$(azdoResourceConnection)'
+resource "azurerm_databricks_workspace" "databricks" {
+  name                = var.databricks_workspace_name
+  resource_group_name = azurerm_resource_group.databricks.name
+  location            = azurerm_resource_group.databricks.location
+  sku                 = "standard"
+  parameters = {
+    vnet_id              = azurerm_virtual_network.databricks_vnet.id
+    vnet_address_space   = [azurerm_virtual_network.databricks_vnet.address_space[0]]
+    subnet_id            = azurerm_virtual_network.databricks_vnet.subnet[0].id
+    public_subnet_id     = azurerm_virtual_network.databricks_vnet.subnet[1].id
+    private_static_ip    = "10.0.1.4"
+    public_static_ip     = "10.0.2.4"
+  }
+}
