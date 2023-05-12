@@ -1,14 +1,14 @@
 variable "resource_group_name" {
   type        = string
-  description = "Name of the resource group."
+  description = "vkrg"
 }
 
 variable "location" {
   type        = string
-  description = "Location of the resource group."
+  description = "East US"
 }
 
 variable "databricks_workspace_name" {
   type        = string
-  description = "Name of the Azure Databricks workspace."
+  description = "vk1901"
 }
